@@ -20,4 +20,4 @@ executable HDisk
   build-depends:       base >= 4.7 && < 5
                      , stm
                      , mtl
-                     , containers
+                     , containers >= 0.5.8
