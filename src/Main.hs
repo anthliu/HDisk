@@ -78,4 +78,7 @@ runRequester f req_numb server = do
 
 main :: IO ()
 main = do
-  putStrLn "hello world"
+  (capacity:filenames) <- getArgs
+  server <- newServicer (read capacity) (length filenames)
+  forkIO $ runServicer server
+  mapM_ (forkIO . \(f, n) -> runRequester f n server) (zip filenames [0..])
