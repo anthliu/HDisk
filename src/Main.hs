@@ -50,25 +50,25 @@ removeRequester (Servicer cap tv) = do
     ServeState active current last queue <- readTVar tv
     writeTVar tv $ ServeState (active-1) current last queue
 
-serviceRequest :: Servicer -> IO ()
-serviceRequest (Servicer cap tv) = do
-  (track,req) <- atomically $ do
-    ServeState active current last queue <- readTVar tv
-    check $ (current >= cap) || (current >= active)
-    let nqueue = fmap (abs . ((-) last) . _disk) queue
-        (Just minin) = flip S.elemIndexL nqueue $ minimum nqueue
-        Request t r iss = S.index queue minin
-    writeTVar iss True
-    writeTVar tv $ ServeState active (current-1) t (S.deleteAt minin queue)
-    return (t,r)
-  putStrLn $ "service requester " ++ show req ++ " track " ++ show track
-
 runServicer :: Servicer -> IO ()
 runServicer s@(Servicer cap tv) = do
-  active <- atomically $ fmap _activeThreads $ readTVar tv
-  unless (active == 0) $ do
-    serviceRequest s
-    runServicer s
+  result <- atomically $ do
+    ServeState active current last queue <- readTVar tv
+    if (active > 0)
+      then do
+        check $ (current >= cap) || (current >= active)
+        let nqueue = fmap (abs . ((-) last) . _disk) queue
+            (Just minin) = flip S.elemIndexL nqueue $ minimum nqueue
+            Request t r iss = S.index queue minin
+        writeTVar iss True
+        writeTVar tv $ ServeState active (current-1) t (S.deleteAt minin queue)
+        return $ Just (t,r)
+      else return Nothing
+  case result of
+    Just (track, req) -> do
+      putStrLn $ "service requester " ++ show req ++ " track " ++ show track
+      runServicer s
+    Nothing -> return ()
 
 runRequester :: String -> Int -> Servicer -> IO ()
 runRequester f req_numb server = do
