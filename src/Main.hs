@@ -55,12 +55,11 @@ serviceRequest (Servicer cap tv) = do
   (track,req) <- atomically $ do
     ServeState active current last queue <- readTVar tv
     check $ (current >= cap) || (current >= active)
-    let go i' a (i,b,min) = if (abs (_disk a - _disk b) < min)
-                          then (i', a, abs (_disk a - _disk b))
-                          else (i, b, min)
-        (ind, Request t r iss, _) = S.foldrWithIndex go (0, S.index queue 0, maxBound :: Int) queue
-    writeTVar iss False
-    writeTVar tv $ ServeState active (current-1) t (S.deleteAt ind queue)
+    let nqueue = fmap (abs . ((-) last) . _disk) queue
+        (Just minin) = flip S.elemIndexL nqueue $ minimum nqueue
+        Request t r iss = S.index queue minin
+    writeTVar iss True
+    writeTVar tv $ ServeState active (current-1) t (S.deleteAt minin queue)
     return (t,r)
   putStrLn $ "service requester " ++ show req ++ " track " ++ show track
 
